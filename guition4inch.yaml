@@ -23,23 +23,27 @@ substitutions:
   temp_max_day_after: sensor.sensor_bom_temp_max_2
   temp_min_day_after: sensor.sensor_bom_temp_min_2
   #wall paper
-  #idle_bg_file: /config/esphome/images/default/planet2.jpg
-  idle_bg_file: https://github.com/chickymonkey/guition-4-inch-esp32-s3/raw/7536460d72daeb86abe9635b221afafb6bceface/planet2.jpg
+  idle_bg_file: /config/esphome/images/default/planet2.jpg
+  #idle_bg_file: https://raw.githubusercontent.com/chickymonkey/guition-4-inch-esp32-s3/7536460d72daeb86abe9635b221afafb6bceface/planet2.jpg
+  garage_bg_file: /config/esphome/images/default/garage_page_bg.jpg
   #don't change anything below
   # Number pad Column X positions
-  numpad_x1: "90"
-  numpad_x2: "215"
+  numpad_x1: "80"
+  numpad_x2: "210"
   numpad_x3: "340"
   # Number pad Row Y positions
   numpad_y1: "95"   # Row 1 (1,2,3)
   numpad_y2: "170"  # Row 2 (4,5,6)
   numpad_y3: "245"  # Row 3 (7,8,9)
   numpad_y4: "315"  # Row 4 (Clear, 0)
-
+  #Espnow
+  espnow_peer1: "98:A3:16:8E:C4:CC"
   #style
   theme_color_primary: "0xF28B42" #orange
   theme_color_secondary: "0xC8B1A0" #light orange
   theme_color_inactive: "0x6e6d6d"
+  security_color_disarm: "0x2DF1DA"
+  security_color_armed: "0xCE0D15"
 esphome:
   name: "guition-esp32-s3-4848s040"
   friendly_name: "Guition 4inch Relay"
@@ -75,11 +79,10 @@ psram:
   mode: octal
   speed: 80MHz
 logger:
-  level: WARN
-  
+  level: DEBUG
+
 ota:
   - platform: esphome
-    password: "Your_password"
     on_begin: # prevent  flickering during OTA
       - light.turn_off:
           id: display_backlight
@@ -90,7 +93,9 @@ web_server:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-
+  ap:
+    ssid: "Guition-4Inch-V1"
+    password: "Wifi12345"
 time:
   - platform: homeassistant
     id: ha_time
@@ -222,18 +227,19 @@ switch:
     pin:
       number: GPIO40
       inverted: False
-  - platform: gpio
-    name: Relay 2
-    id: relay2
-    pin:
-      number: GPIO2
-      inverted: False
-  - platform: gpio
-    name: Relay 3
-    id: relay3
-    pin:
-      number: GPIO1
-      inverted: False
+#below are working, but not used for now
+#  - platform: gpio
+#    name: Relay 2
+#    id: relay2
+#    pin:
+#      number: GPIO2
+#      inverted: False
+#  - platform: gpio
+#    name: Relay 3
+#    id: relay3
+#    pin:
+#      number: GPIO1
+#      inverted: False
 
 output:
   - platform: ledc
@@ -283,6 +289,20 @@ interval:
     then:
       - script.execute: garage_btn_check
       - script.execute: living_room_light_check
+  - interval: 700ms #security_label breath style when armed.
+    then:
+      - if:
+          condition:
+            lambda: 'return id(alarm_status).state != "disarmed";'
+          then:
+            - lambda: 'id(blink_on) = !id(blink_on);'
+            - lvgl.widget.update:
+                id: security_label
+                opa: !lambda 'return id(blink_on) ? LV_OPA_COVER : LV_OPA_TRANSP;'
+          else:
+            - lvgl.widget.update:
+                id: security_label
+                opa: COVER
 display:
   - platform: st7701s
     id: tft_display
@@ -353,9 +373,9 @@ lvgl:
       border_opa: 50%
       shadow_opa: TRANSP
       shadow_width: 0
-      radius: 25
-      width: 50
-      height: 50
+      radius: 28
+      width: 56
+      height: 56
 
     - id: numpad_label
       text_color: 0xc8c4ff
@@ -380,7 +400,6 @@ lvgl:
       height: 70
       radius: 35
       bg_color: ${theme_color_inactive}
-      #bg_opa: cover
       border_color: 0x2a2840
       border_width: 1
       border_opa: 50%
@@ -393,15 +412,22 @@ lvgl:
     height: 34
     widgets:
       - label:
-          id: wifi_icon_label
+          id: security_label
           x: 8
+          y: 2
+          text: "\U000F0CCB"
+          text_color: ${security_color_disarm}
+          text_font: icon_font_20
+      - label:
+          id: wifi_icon_label
+          x: 415
           y: 2
           text: "\U000F0928"
           text_color: ${theme_color_secondary}
           text_font: icon_font_20
       - label:
           id: wifi_db_label
-          x: 45
+          x: 440
           y: 4
           text: "--%"
           text_color: ${theme_color_secondary}
@@ -417,7 +443,7 @@ lvgl:
           text_align: center
           text_color: ${theme_color_secondary}
           text_font: montserrat_16
-
+      
   pages:
     - id: main_page
       widgets:
@@ -459,8 +485,9 @@ lvgl:
                 id: tab_garage
                 width: 100%
                 text_font: icon_font_80
-                bg_color: 0x050505
-                bg_opa: cover
+                bg_image_src: garage_bg
+                #bg_color: 0x050505
+                #bg_opa: 60%
                 scrollable: False
                 scrollbar_mode: "off"
                 scroll_dir: "none"
@@ -667,8 +694,9 @@ lvgl:
                 scroll_dir: "none"
                 scrollable: False
                 width: 100%
-                bg_color: 0x050505
-                bg_opa: cover
+                bg_image_src: garage_bg
+                #bg_color: 0x050505
+                #bg_opa: 60%
                 pad_bottom: 5
                 pad_left: 5
                 pad_right: 5
@@ -769,8 +797,9 @@ lvgl:
                 scroll_dir: "none"
                 scrollable: False
                 width: 100%
-                bg_color:  0x050505
-                bg_opa: cover
+                bg_image_src: garage_bg
+                bg_color: 0x050505
+                bg_opa: 60%
                 pad_bottom: 5
                 pad_left: 5
                 pad_right: 5
@@ -779,7 +808,6 @@ lvgl:
                       id: alarm_label
                       text: "Status: LOADING..."
                       align: TOP_MID
-                      y: 3
                       text_color: 0xc8c4ff
                       text_font: montserrat_16
 
@@ -787,7 +815,7 @@ lvgl:
                   - button:
                       id: btn_arm_away
                       x: 55
-                      y: 35
+                      y: 25
                       width: 110
                       height: 35
                       radius: 25
@@ -815,14 +843,14 @@ lvgl:
                       id: pin_display
                       text: "----"
                       align: TOP_MID
-                      y: 47
+                      y: 37
                       text_font: montserrat_22
                       text_color: 0xbbbbbb
 
                   - button:
                       id: btn_arm_night
                       x: 305
-                      y: 35
+                      y: 25
                       width: 110
                       height: 35
                       radius: 25
@@ -841,7 +869,7 @@ lvgl:
                         - lambda: id(current_pin) = "";
                       widgets:
                         - label:
-                            text: "Arm Night"
+                            text: "Cat Away"
                             text_color: 0xFF8C00
                             text_font: montserrat_16
                             align: CENTER
@@ -1012,7 +1040,7 @@ lvgl:
                             align: CENTER
                   - button: #Disarm
                       id: btn_disarm
-                      x: 305
+                      x: 315
                       y: 325
                       width: 110
                       height: 35
@@ -1040,14 +1068,14 @@ lvgl:
     - id: idle_page
       bg_color: 0x000000
       bg_opa: COVER
-      bg_image_src: scene_image
+      bg_image_src: idle_bg
       bg_image_opa: COVER
       widgets:
         # AM / PM
         - label:
             id: lbl_ampm
             x: 55
-            y: 88
+            y: 80
             text_font: font_ampm
             text_color: ${theme_color_secondary}
 
@@ -1055,7 +1083,7 @@ lvgl:
         - label:
             id: lbl_hour
             x: 70
-            y: 105
+            y: 100
             text_font: font_time_large
             text_color: ${theme_color_primary}
 
@@ -1141,7 +1169,7 @@ script:
   - id: inactivity_timer
     mode: restart
     then:
-      - delay: 60s
+      - delay: 44s
       - lambda: |-
           id(screen_active) = false;
 
@@ -1317,7 +1345,13 @@ script:
             - lvgl.label.update:
                 id: bulb_label_living2
                 text_color: 0x888888
-
+  #esp now
+  - id: send_ack
+    then:
+      - espnow.send:
+          address: ${espnow_peer1}
+          data: !lambda "return {0xAC, 0xA0};"
+      - logger.log: "Sending ACK packet"
 
 globals:
   - id: current_pin
@@ -1327,7 +1361,11 @@ globals:
   - id: screen_active
     type: bool
     initial_value: "false"
-
+  
+  - id: blink_on #used for security_label when it's armed.
+    type: bool
+    restore_value: false
+    initial_value: "false"
 text_sensor:
   - platform: homeassistant
     name: "Alarm Status"
@@ -1363,7 +1401,15 @@ text_sensor:
             if (s == "pending")             return lv_color_hex(0xFFAB00); // Yellow-orange
             if (s == "triggered")           return lv_color_hex(0xFF1744); // Red
             return lv_color_hex(0x9E9E9E);  // Grey for unavailable/unknown
-
+      - lvgl.label.update:
+          id: security_label
+          text_color: !lambda |-
+            auto s = id(alarm_status).state;
+            if (s == "disarmed"){
+              return lv_color_hex(0x00E676); // Green
+            } else {
+              return lv_color_hex(0xE81744); // Red
+            }        
 binary_sensor:
   - platform: homeassistant
     id: garage_up_allowed
@@ -1691,7 +1737,8 @@ font:
     bpp: 4
     glyphs: [
       "\U000F0928",  # wifi-strength-3
-      "\U000F092E"   # no wifi
+      "\U000F092E",   # no wifi
+      "\U000F0CCB",  # mdi-shield-alert
       ]
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_40
@@ -1737,7 +1784,7 @@ font:
       "\U000F050F",  # mdi-thermometer
       "\U000F0F9B",  # mdi-home-export-outline
       "\U000F0F9C",  # mdi-home-import-outline
-      "\U000F187F",  #airplane-marker
+      "\U000F187F",  # airplane-marker
       "\U000F0CCB",  # mdi-shield-alert
       "\U000F1717",  #mdi-movie-star
       "\U000F17FC"   #garage-variant-lock
@@ -1788,9 +1835,49 @@ number:
     unit_of_measurement: "h"
     icon: mdi:clock-plus-outline
 
+#ESP now config - Provider
+espnow:
+  id: espnow_garage
+  auto_add_peer: True
+  enable_on_boot: True
+  on_receive:
+    then:
+      - lambda: |-
+          if (size == 4 &&
+              data[0] == 0x00 &&
+              data[1] == 0x00 &&
+              data[2] == 0x34 &&
+              data[3] == 0x5D) {
+
+            ESP_LOGI("espnow", "Valid command received from Button, toggling the switch");
+
+            id(relay1).toggle();
+            
+            static unsigned long last_time = 0;
+
+            if (millis() - last_time > 800) {
+              last_time = millis();
+              // delay 800ms
+              // Send ACK back via script
+              id(send_ack).execute();
+            }
+
+          }
+          
+packet_transport:
+  - platform: espnow
+    id: transport_unicast
+    espnow_id: espnow_garage
+    peer_address: ${espnow_peer1}
+
 #wall paper
 image:
   - file: ${idle_bg_file}
-    id: scene_image
+    id: idle_bg
     resize: 480x480
     type: RGB565
+  - file: ${garage_bg_file}
+    id: garage_bg
+    resize: 480x480
+    type: RGB565
+    
