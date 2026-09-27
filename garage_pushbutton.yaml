@@ -1,3 +1,10 @@
+##
+# control via espnow from Guition 4 inch LCD touch or HA button
+# Due to the location of this ESP from the wifi router, added ESPnow control from Guition touch screen, which got better wifi signal
+---
+substitutions:
+  #Espnow
+  espnow_sender: "E0:72:A1:F6:A9:9C"
 esphome:
   name: garage-door-push-button
   friendly_name: Garage door push button
@@ -6,7 +13,8 @@ esp32:
   board: esp32dev
   framework:
     type: esp-idf
-    advanced: 
+    advanced:
+      minimum_chip_revision: "3.1"
       sram1_as_iram: true
 
 logger:
@@ -14,10 +22,11 @@ logger:
 
 api:
   encryption:
+    key: "pDWysKgzFAQoQbClHX0WLbFtZib+L0BPgbuiPeYayGs="
 
 ota:
   - platform: esphome
-
+    password: "13a790ebe5575c835d3dd9dd52045c75"
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -105,6 +114,8 @@ sensor:
     unit_of_measurement: "%"
     accuracy_decimals: 0
     update_interval: 300ms
+    filters:
+      - delta: 0.5
     lambda: |-
       return round(id(door_pos) * 100.0);
 
@@ -152,7 +163,32 @@ binary_sensor:
     name: "Garage Next is Stop"
     lambda: |-
       return (id(moving_dir) != 0);
+  #espnow
+  # NEW: remote button presses from the LCD, wired straight into your existing scripts
 
+  - platform: packet_transport
+    id: remote_cmd_up
+    provider: guition-esp32-s3-4848s040
+    remote_id: cmd_up
+    on_press:
+      - script.execute: ensure_opening
+      - script.execute: ack_up
+
+  - platform: packet_transport
+    id: remote_cmd_stop
+    provider: guition-esp32-s3-4848s040
+    remote_id: cmd_stop
+    on_press:
+      - script.execute: stop_motion
+      - script.execute: ack_stop
+
+  - platform: packet_transport
+    id: remote_cmd_down
+    provider: guition-esp32-s3-4848s040
+    remote_id: cmd_down
+    on_press:
+      - script.execute: ensure_closing
+      - script.execute: ack_down
 # --- Exported buttons (mutually exclusive in UI via sensors above) ---
 button:
   - platform: template
@@ -431,3 +467,41 @@ script:
           id: garage_cov
           position: 1.0
           current_operation: IDLE
+  ##Espnow ack script
+  - id: ack_up
+    then:
+      - espnow.send:
+          address: ${espnow_sender}
+          data: !lambda "return {0xAC, 0x01};"
+
+  - id: ack_stop
+    then:
+      - espnow.send:
+          address: ${espnow_sender}
+          data: !lambda "return {0xAC, 0x02};"
+
+  - id: ack_down
+    then:
+      - espnow.send:
+          address: ${espnow_sender}
+          data: !lambda "return {0xAC, 0x03};"
+          
+#ESP now config - Provider
+espnow:
+  id: espnow_garage
+  auto_add_peer: True
+  enable_on_boot: True
+  on_receive:
+    then:
+
+# NEW packet_transport link dedicated to the LCD remote
+packet_transport:
+  - platform: espnow
+    id: transport_lcd
+    espnow_id: espnow_garage          # reusing your existing espnow instance
+    peer_address: ${espnow_sender}
+    update_interval: 1s
+    providers:
+      - name: guition-esp32-s3-4848s040        # must match the LCD's esphome: name:
+    sensors:
+      - garage_position_pct
