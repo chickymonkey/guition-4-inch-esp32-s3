@@ -22,8 +22,7 @@ logger:
 
 api:
   encryption:
-    key: "pDWysKgzFAQoQbClHX0WLbFtZib+L0BPgbuiPeYayGs="
-
+    key: !secret garage_button_api
 ota:
   - platform: esphome
     password: "13a790ebe5575c835d3dd9dd52045c75"
